@@ -9,14 +9,18 @@ from MainProcessPackage.GPIOAssistant import GPIOAssistant
 from MainProcessPackage.TCPClient import TCPClient
 import struct
 
-'''
-関数名: updateState
-shared_obj:
-currentIsStandbySW: 
-currentIsDriveSW: 
-previousIsStandbySW: 
-previousIsDriveSW: 
-'''
+#FIFO処理モジュールのインポート
+import queue
+#コントローラ入力取得
+import pygame
+import socket
+
+#コントローラ種別
+JOYSTICK = 0
+PSCONTROLLER = 1
+MICROBIT = 2
+
+
 def updateState(shared_obj, currentIsStandbySW, currentIsDriveSW, previousIsStandbySW, previousIsDriveSW):
     currentState = shared_obj.state
 
@@ -64,7 +68,6 @@ async def main():
 
     #GPIO初期化
     """
-    各SWの入力だったりスタンバイスイッチだったりを受け付ける
     StandbySwIO = GPIOAssistant(7)
     DriveSwIO = GPIOAssistant(8)
     previousIsStandbySW = StandbySwIO.isInput()
@@ -83,14 +86,59 @@ async def main():
     #CAN通信初期化(バッテリ残量取得用IO)
     #(TODO)CAN通信初期化処理実装
 
-    '''
-    グローバルからローカルに共有変数を落とし込む
-    計算処理を行う
-    必要なものはローカルからグローバルに書き込む
-    '''
+    STOP_FLAG = False #socketを閉じる前の書き込み状況確認フラグ
+    p0_time_max = 0   #周期
 
+    #コントローラ種別
+    i4_ctr_type = shared_obj.i4g_p0_CTRtype.value
+    
+    #★★★OperationProcessに移植可能か検討すること！
+    match i4_ctr_type:
+#        case 0: #JOYSTICK:
+        case 1: #PSCONTROLLER:
+            #コントローラ入力用のキュー
+            ctrl_input_x = queue.Queue()
+            ctrl_input_y = queue.Queue()
+            ctrl_input_strt = [0,0]
+            ctrl_input_curve = [0,0]
+
+            # pygame初期化
+            pygame.init()
+            # joystickオブジェクトを作成
+            joystick = pygame.joystick.Joystick(0)
+            joystick.init()
+
+#        case 2: #MICROBIT:
+        case _:
+            print("invalid controller")
+            
+            
     #メインループ
     while True:
+        p0_start = time.time() #現在時刻を取得
+
+        #★★★OperationProcessに移植可能か検討すること！
+        # コントローラ入力の取得
+        match i4_ctr_type:
+#            case 0: #JOYSTICK:
+            case 1: #PSCONTROLLER:
+                if pygame.event.get():
+                    # Aボタンが押されたら終了
+                    if joystick.get_button(0):
+                        print('stop!')
+                        STOP_FLAG = True
+                        #break
+                    else:
+                        #ジョイスティックの操作を読み取る
+                        js_input_lr = joystick.get_axis(0) #左のジョイスティックの左右方向
+                        #print(js_input_lr)
+                        js_input_bf = joystick.get_axis(4) #右のジョイスティックの上下方向
+                        #print(js_input_bf)
+#            case 2: #MICROBIT:
+            case _:
+                print("invalid controller")
+
+
         #状態更新
         """
         currentIsStandbySW = StandbySwIO.isInput()
@@ -122,11 +170,24 @@ async def main():
 
         #★★shared_obj定義の共有変数への書き込み
         #【例】shared_obj."共有変数".value = "ローカル変数"
+        match i4_ctr_type:
+#            case 0: #JOYSTICK:
+            case 1: #PSCONTROLLER:
+                shared_obj.f4g_p1_joyAxisLR = js_input_lr #ジョイスティックの左右操作量
+                shared_obj.f4g_p1_joyAxisFB = js_input_bf #ジョイスティックの前後操作量
+                shared_obj.b1g_p0_Stop = STOP_FLAG
 
+#            case 2: #MICROBIT:
+            case _:
+                print("invalid controller")
 
         #★★必要に応じて待ち時間を設定
-        await asyncio.sleep(1)
-
+        #await asyncio.sleep(1)
+        p0_end = time.time()
+        p0_time = p0_end - p0_start
+        p0_time_max = max(p0_time_max, p0_time)
+        time.sleep(max(0.001,(0.05-p0_time)))
+        #print(p0_time)
 
 '''
 共有変数定義
