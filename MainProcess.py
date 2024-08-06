@@ -110,7 +110,7 @@ async def main():
 
 #        case 2: #MICROBIT:
         case _:
-            print("invalid controller")
+            print("invalid controller 4")
             
             
     #メインループ
@@ -136,7 +136,7 @@ async def main():
                         #print(js_input_bf)
 #            case 2: #MICROBIT:
             case _:
-                print("invalid controller")
+                print("invalid controller 5")
 
 
         #状態更新
@@ -179,7 +179,7 @@ async def main():
 
 #            case 2: #MICROBIT:
             case _:
-                print("invalid controller")
+                print("invalid controller 6")
 
         #★★必要に応じて待ち時間を設定
         #await asyncio.sleep(1)

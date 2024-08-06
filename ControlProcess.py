@@ -44,10 +44,20 @@ def worker(shared_obj):
     Max_Velo = 200.0 #rps
     Velo_Tor = 50.0 #最大車速超過許容
     Pos_Range = 100 #mm
+
+    # 初期接続処理
+    M_SIZE = 32
+    locaddr = ('0.0.0.0', 9998)
+    sock = socket.socket(socket.AF_INET, type=socket.SOCK_DGRAM)
+    sock.settimeout(0.01)
     '''■■■PoC流用ここまで'''
 
     #コントローラの接続はOperationProcessへ
+    sock = socket.socket(socket.AF_INET, type=socket.SOCK_DGRAM)
     communication_counter=0
+    
+    ##受信確認
+    message, cli_addr = sock.recvfrom(M_SIZE)
 
     #駆動関係の通信初期設定
     '''■■■PoC流用'''

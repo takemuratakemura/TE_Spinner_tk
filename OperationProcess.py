@@ -1,7 +1,7 @@
 #操作/表示系(プロセス1)記載用pyファイル
 import time
 from common.State import State
-from bluepy.btle import DefaultDelegate, Peripheral,ADDR_TYPE_RANDOM
+#from bluepy.btle import DefaultDelegate, Peripheral,ADDR_TYPE_RANDOM
 from common.SharedObject import SharedObject
 
 #コントローラ入力取得
@@ -12,6 +12,21 @@ import socket
 JOYSTICK = 0
 PSCONTROLLER = 1
 MICROBIT = 2
+
+'''■■■PoC流用 ここはControlProcessとどっちがいいか確認'''
+i = 0
+dummy= 0
+p1_time_max = 0
+Max_Torque = 450.0
+Min_Torque = -Max_Torque
+Torque_UpperLimit = Max_Torque
+Torque_LowerLimit = -Torque_UpperLimit
+Max_Velo = 200.0 #rps
+Velo_Tor = 50.0 #最大車速超過許容
+Pos_Range = 100 #mm
+
+'''■■■PoC流用ここまで'''
+
 
 '''Microbit初期設定'''
 # MicrobitのMAC
@@ -83,7 +98,7 @@ def worker(shared_obj):
             tmp_service = peripheral.getServiceByUUID(TMP_SERVICE_UUID)
             tmp_characteristic = peripheral.getCharacteristics(uuid=TMP_CHARACTERISTICS_UUID)
         case _:
-            print("invalid controller")
+            print("invalid controller 1")
     
     #操作/表示系用プロセスのメインループ
     while True:
@@ -92,14 +107,17 @@ def worker(shared_obj):
         match i4_ctr_type:
 #            case 0: #JOYSTICK:
             case 1: #PSCONTROLLER:
-                STOP_FLAG = val0_loacl[1]
+                STOP_FLAG = shared_obj.b1g_p0_Stop.value
                 if STOP_FLAG == True:
                     sock.close()
                     time.sleep(1)
                     break
                     
-                trq_bf = val1_loacl[0]*Max_Torque
-                pos_lr = int(val1_loacl[1]*Pos_Range)
+                #★★★かとしょーさんに確認。もともとのval1_local[#]が何だったか？
+                #trq_bf = val1_loacl[0]*Max_Torque
+                #pos_lr = int(val1_loacl[1]*Pos_Range)
+                trq_bf = shared_obj.f4g_p1_joyAxisFB.value * Max_Torque
+                pos_lr = int(shared_obj.f4g_p1_joyAxisLR.value * Pos_Range)
 
 
             case 2: #MICROBIT:
@@ -115,7 +133,7 @@ def worker(shared_obj):
                 axis_z = int.from_bytes(acc_read_data[4:6], byteorder='little', signed=True)
                 '''Microbit読み出しここまで'''
             case _:
-                print("invalid controller")
+                print("invalid controller 2")
             
         #【例】"ローカル変数" = shared_obj."共有変数".value
         state = shared_obj.state
@@ -133,8 +151,8 @@ def worker(shared_obj):
                 shared_obj.f4g_p1_joyAxisFB.value = axis_y #縦方向をグローバルに書き込み
                 shared_obj.u1g_p1_Pkb.value = btnB_read_data #PKB状態を書き込み
 
-            case _:
-                print("invalid controller")
+#            case _:
+#                print("invalid controller 3")
 
 
         #★★必要に応じて待ち時間を設定
