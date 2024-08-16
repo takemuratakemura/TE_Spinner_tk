@@ -13,7 +13,7 @@ class SharedObject:
         self.i4g_p0_HWid = multiprocessing.Value(ctypes.c_uint, 0) #ハードウェア識別(0:POC, 1:本番機)
         self.u1g_p1_PKB = multiprocessing.Value(ctypes.c_char, 0) #PKB信号
         self.i4g_p0_CTRtype = multiprocessing.Value(ctypes.c_uint, 1) #0:本番機, 1:PSコントローラ, 2:Microbit
-        self.b1g_p0_Stop = multiprocessing.Value(ctypes.c_bool, False)
+        self.b1g_p0_Stop = multiprocessing.Value(ctypes.c_bool, False) #通信処理停止SW
 
 
     @property
