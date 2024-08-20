@@ -27,6 +27,7 @@ def worker(shared_obj):
     '''UDP通信用初期化処理(UDP②)'''
     M_SIZE = 32
     dummy = 0
+    p1_time_max = 0
     Max_Torque = 450.0 #Nm
     Pos_Range = 100 #mm
     locaddr = ('0.0.0.0', 9998)
@@ -51,6 +52,8 @@ def worker(shared_obj):
     sock.sendto(send_data,cli_addr)
     
     '''UDP通信用初期化処理'''
+    
+    p1_start = time.time()
     
     #駆動/重心制御用プロセスのメインループ
     while True:
