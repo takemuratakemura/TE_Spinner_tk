@@ -24,6 +24,13 @@ def printState(state):
 #駆動/重心制御用としてプロセス化される関数 ※process2=controlProcessのメイン関数にあたる
 def worker(shared_obj):
     #★★プロセス開始時の初期設定(ローカル変数/定数の設定)や初期化処理を記述
+    '''■■■横軸と縦軸の現在〜過去値'''
+    x_f     = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] #横方向の値 0番目が生値相当 10回平均
+    y_f     = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] #縦方向の値 0番目が生値相当 10回平均
+    speed_f = [0, 0, 0, 0, 0] #車速 0番目が生値相当 5回平均
+    state_n = [0, 0] #車両状態 0番目が現在値、1番目が前回値 ※想定外の状態遷移防止
+    '''■■■ここまで'''
+
     '''UDP通信用初期化処理(UDP②)'''
     M_SIZE = 32
     dummy = 0
@@ -66,6 +73,15 @@ def worker(shared_obj):
         js_bf_local = shared_obj.f4g_p1_joyAxisFB.value
         js_lr_local = shared_obj.f4g_p1_joyAxisLR.value
         js_stp_local = shared_obj.b1g_p0_Stop.value
+
+        '''平均値採用バージョン''
+        #コントローラからの入力値を取得
+        x_f = input_raw_data(f4_x, shared_obj.f4g_p1_joyAxisLR.value) #横軸生値更新
+        y_f = input_raw_data(f4_y, shared_obj.f4g_p1_joyAxisFB.value) #縦軸生値更新
+        speed_f =  input_raw_data(f4_speed, shared_obj.f4g_p2_speed.value) #車速生値更新
+        u1_Pkb = shared_obj.u1g_p1_Pkb.value #PKB取得
+        f4_x_ave = np.average(x_f) #配列分だけ単純平均
+        ''平均値採用バージョンここまで'''
         
         torque = int(js_bf_local * Max_Torque)
         pos = int(js_lr_local * Pos_Range)
@@ -115,3 +131,10 @@ def worker(shared_obj):
         p1_time_max = max(p1_time_max, p1_time)
         #print(p1_time_max)
         time.sleep(max(0.001,(0.05-p1_time)))
+
+
+#0番目に生値を格納して過去値を1つずらす
+def input_raw_data(arr, raw):
+    new_arr = np.roll(arr, 1)
+    new_arr[0] = raw
+    return new_arr
