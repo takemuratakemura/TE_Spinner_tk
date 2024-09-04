@@ -8,6 +8,22 @@ import time
 from struct import pack, unpack
 '''UDP通信用ヘッダ'''
 
+# Python上でC言語の関数を使用できるようにするモジュールctypesのインポート
+import ctypes										#◆◆◆◆◆重心制御
+
+#ControlProcess内定数定義
+MAX_FORWARD_SPEED 4.0 #[km/h]
+MAX_BACKWARD_SPEED 1.0 #[km/h]
+
+target_speed_map = {
+    -100: MAX_BACKWARD_SPEED,
+    -95: MAX_BACKWARD_SPEED,
+    -5: 0,
+    5: 0,
+    95: MAX_FORWARD_SPEED,
+    100: MAX_FORWARD_SPEED
+}
+
 
 #取得した現stateを表示する関数例
 def printState(state):
@@ -24,13 +40,6 @@ def printState(state):
 #駆動/重心制御用としてプロセス化される関数 ※process2=controlProcessのメイン関数にあたる
 def worker(shared_obj):
     #★★プロセス開始時の初期設定(ローカル変数/定数の設定)や初期化処理を記述
-    '''■■■横軸と縦軸の現在〜過去値'''
-    x_f     = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] #横方向の値 0番目が生値相当 10回平均
-    y_f     = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] #縦方向の値 0番目が生値相当 10回平均
-    speed_f = [0, 0, 0, 0, 0] #車速 0番目が生値相当 5回平均
-    state_n = [0, 0] #車両状態 0番目が現在値、1番目が前回値 ※想定外の状態遷移防止
-    '''■■■ここまで'''
-
     '''UDP通信用初期化処理(UDP②)'''
     M_SIZE = 32
     dummy = 0
@@ -67,21 +76,21 @@ def worker(shared_obj):
         #★★shared_obj定義の共有変数からローカル変数への値読み出し※計算に使用するものなど必要なものを読み出す
         #【例】"ローカル変数" = shared_obj."共有変数".value
         state = shared_obj.state #__i4g_p0_stateはSharedObject.py内のstate関数経由で読み出すため「shared_obj.state」の記述で良く「.value」は付けない
+        Yaw = shared_obj.f4g_p1_EulerAngles_Yaw.value		#◆◆◆◆◆重心制御
+        Pitch = shared_obj.f4g_p1_EulerAngles_Pitch.value	#◆◆◆◆◆重心制御
+        Roll = shared_obj.f4g_p1_EulerAngles_Roll.value		#◆◆◆◆◆重心制御
+        Accl_x = shared_obj.f4g_p1_Acceleration_x.value		#◆◆◆◆◆重心制御
+        Accl_y = shared_obj.f4g_p1_Acceleration_y.value		#◆◆◆◆◆重心制御
+        Accl_z = shared_obj.f4g_p1_Acceleration_z.value		#◆◆◆◆◆重心制御
+        Gyro_x = shared_obj.f4g_p1_AngularVelocity_x.value	#◆◆◆◆◆重心制御
+        Gyro_y = shared_obj.f4g_p1_AngularVelocity_y.value	#◆◆◆◆◆重心制御
+        Gyro_z = shared_obj.f4g_p1_AngularVelocity_z.value	#◆◆◆◆◆重心制御
 
         '''UDP通信用ループ処理(UDP③)'''
 		#コントローラからの入力（global経由）
-        js_bf_local = shared_obj.f4g_p1_joyAxisFB.value
-        js_lr_local = shared_obj.f4g_p1_joyAxisLR.value
-        js_stp_local = shared_obj.b1g_p0_Stop.value
-
-        '''平均値採用バージョン''
-        #コントローラからの入力値を取得
-        x_f = input_raw_data(f4_x, shared_obj.f4g_p1_joyAxisLR.value) #横軸生値更新
-        y_f = input_raw_data(f4_y, shared_obj.f4g_p1_joyAxisFB.value) #縦軸生値更新
-        speed_f =  input_raw_data(f4_speed, shared_obj.f4g_p2_speed.value) #車速生値更新
-        u1_Pkb = shared_obj.u1g_p1_Pkb.value #PKB取得
-        f4_x_ave = np.average(x_f) #配列分だけ単純平均
-        ''平均値採用バージョンここまで'''
+        js_bf_local = shared_obj.f4g_p1_joyAxisFB.value #ジョイスティックの前後操作量
+        js_lr_local = shared_obj.f4g_p1_joyAxisLR.value #ジョイスティックの左右操作量
+        js_stp_local = shared_obj.i4g_p1_ComStop.value  #外部からの通信停止信号
         
         torque = int(js_bf_local * Max_Torque)
         pos = int(js_lr_local * Pos_Range)
@@ -104,11 +113,22 @@ def worker(shared_obj):
             communication_counter = 0
 
         Velo = float(Act_Velo) * 7.5 / 360 #cnt/sec -> rps
+        Speed_mm_s = (Velo * 4200 / 368.9) # - (Gyro_x * 250)		#★★★速度算出
+        Speed_km_h = Speed_mm_s * 3600 / 1000000				#★★★速度算出
+
+        #ジョイスティックの傾きにより目標車速を決定する
+        #ジョイスティックは[-100, +100]の範囲で動く
+        #[-100, -95] 使わない
+        #[-95, -5] 0 - MAX_BACKWARD_SPEEDの範囲
+        #[-5, 5] 使わない
+        #[5, 95] 0 - MAX_FORWARD_SPEEDの範囲
+        #[95, 100] 使わない
+        
 
         state_command = 0x01 #Servo ON
-        #if i % 20 == 0: 
-        print("MorVelo:", Velo, "[rps] Torque_cmd:", torque, "[Nm]  Torque_act:", Act_Torque)
-
+        #if i % 20 == 0:
+        print("MotVelo:", Velo, "[rps] Torque_cmd:", torque, "[Nm]  Torque_act:", Act_Torque)
+        #print("Speed:", Speed_mm_s, "[mm/s] ,", Speed_km_h, "[km/h]")
 
 		#送信
         state_command = 0x01
@@ -119,7 +139,10 @@ def worker(shared_obj):
 
 
         #★★計算や処理 ※worker関数外に別関数を定義して呼び出す記載にしても良い
-        printState(state) #【例】
+        #printState(state) #【例】
+        #print("p2:EulerAngles -> ({}, {}, {})".format(Yaw, Pitch, Roll))	#◆◆◆◆◆重心制御
+        #print("p2:Accl        -> ({}, {}, {})".format(Accl_x, Accl_y, Accl_z))	#◆◆◆◆◆重心制御
+        #print("p2:Gyro        -> ({}, {}, {})".format(Gyro_x, Gyro_y, Gyro_z))	#◆◆◆◆◆重心制御
         
         #★★shared_obj定義の共有変数への書き込み
         #【例】shared_obj."共有変数".value = "ローカル変数"
@@ -133,8 +156,39 @@ def worker(shared_obj):
         time.sleep(max(0.001,(0.05-p1_time)))
 
 
-#0番目に生値を格納して過去値を1つずらす
-def input_raw_data(arr, raw):
-    new_arr = np.roll(arr, 1)
-    new_arr[0] = raw
-    return new_arr
+#変数valueに対してmapで定義された点を線形補間する
+#範囲の外側は最小値または最大値が入る
+def linear_interpolation(target_map, value):
+    """
+    Performs linear interpolation based on a set of points.
+    If the value is outside the range, it returns the min or max value.
+
+    Parameters:
+    points (dict): A dictionary where the keys are the input points and the values are the corresponding output points.
+    value (float): The input value to interpolate.
+
+    Returns:
+    float: The interpolated output value.
+    """
+    # ソートされたリストに変換
+    sorted_points = sorted(target_map.items())
+
+    # 入力値が範囲外の場合、最小値または最大値を返す
+    if value <= sorted_points[0][0]:
+        return sorted_points[0][1]
+    elif value >= sorted_points[-1][0]:
+        return sorted_points[-1][1]
+
+    # 2つの近い点を探す
+    for i in range(len(sorted_points) - 1):
+        x1, y1 = sorted_points[i]
+        x2, y2 = sorted_points[i + 1]
+
+        if x1 <= value <= x2:
+            # 線形補間の計算
+            t = (value - x1) / (x2 - x1)
+            return y1 + t * (y2 - y1)
+
+    # ここには到達しないはず
+    return None
+

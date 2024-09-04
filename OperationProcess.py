@@ -4,26 +4,12 @@ from common.State import State
 '''joystick用初期化処理(joystick①)'''
 import pygame
 
-
-'''Microbit用初期化処理(Microbit①)'''
-from bluepy.btle import DefaultDelegate, Peripheral,ADDR_TYPE_RANDOM
-
-# takemura microbitのMACアドレス
-MAC_ADDRESS = 'F3:52:BC:B2:86:72'
-
-#ACCELEROMETER SERVICE/CHARACTERISTICS UUID
-ACC_SERVICE_UUID = 'E95D0753251D470AA062FA1922DFA9A8'
-ACC_CHARACTERISTICS_UUID = 'E95DCA4B251D470AA062FA1922DFA9A8'
-
-#BUTTON SERVICE/BUTTON A CHARACTERISTICS UUID
-BTN_SERVICE_UUID = 'E95D9882251D470AA062FA1922DFA9A8'
-BTN_A_CHARACTERISTICS_UUID = 'E95DDA90251D470AA062FA1922DFA9A8'
-BTN_B_CHARACTERISTICS_UUID = 'E95DDA91251D470AA062FA1922DFA9A8'
-
-#TEMPATURE SERVICE/CHARACTERISTICS UUID
-TMP_SERVICE_UUID = 'E95D6100251D470AA062FA1922DFA9A8'
-TMP_CHARACTERISTICS_UUID = 'E95D9250251D470AA062FA1922DFA9A8'
-'''Microbit用初期化処理'''
+# Python上でC言語の関数を使用できるようにするモジュールctypesのインポート
+import ctypes										#◆◆◆◆◆重心制御
+from OperationProcessPackage.BNO055io import BNO055	#速度算出用センサpyファイル	#◆◆◆◆◆重心制御
+from OperationProcessPackage.BMX055io import BMX055	#傾き算出用センサpyファイル	#◆◆◆◆◆重心制御
+import tkinter as tk								#傾き描画確認のため			#◆◆◆◆◆重心制御
+import math											#三角関数等利用のため		#◆◆◆◆◆重心制御
 
 
 #取得した現stateを表示する関数例
@@ -51,20 +37,26 @@ def worker(shared_obj):
     joystick = pygame.joystick.Joystick(0)
     joystick.init()
     '''joystick用初期化処理'''
+    
+    EulerAngles_zyx = ctypes.c_float * 3		#◆◆◆◆◆重心制御
+    Acceleration_xyz = ctypes.c_float * 3		#◆◆◆◆◆重心制御
+    AngularVelocity_xyz = ctypes.c_float * 3	#◆◆◆◆◆重心制御
+    
+    bmx = BMX055()								#◆◆◆◆◆重心制御
+    time.sleep(0.1)								#◆◆◆◆◆重心制御
+    
+    bno = BNO055()								#◆◆◆◆◆重心制御
+    if bno.begin() is not True:					#◆◆◆◆◆重心制御
+        print("Error initializing device")		#◆◆◆◆◆重心制御
+        exit()									#◆◆◆◆◆重心制御
+    time.sleep(1)								#◆◆◆◆◆重心制御
+    bno.setExternalCrystalUse(True)				#◆◆◆◆◆重心制御
+    
+    root = tk.Tk()								#◆◆◆◆◆重心制御
+    root.geometry("600x200")					#◆◆◆◆◆重心制御
+    canvas = tk.Canvas(root, bg = "white")		#◆◆◆◆◆重心制御
+    canvas.pack(fill = tk.BOTH, expand = True)	#◆◆◆◆◆重心制御
 
-    '''Microbit用初期化処理（Microbit②)'''
-    # Microbit接続有無
-    MB_enable = shared_obj.b1g_p0_Microbit_enable.value
-    # 接続設定
-    peripheral = Peripheral(MAC_ADDRESS, ADDR_TYPE_RANDOM)
-    # 加速度センサー
-    acc_service = peripheral.getServiceByUUID(ACC_SERVICE_UUID)
-    acc_characteristic = peripheral.getCharacteristics(uuid=ACC_CHARACTERISTICS_UUID)
-    # ボタン状態
-    btn_service = peripheral.getServiceByUUID(BTN_SERVICE_UUID)
-    btn_A_characteristic = peripheral.getCharacteristics(uuid=BTN_A_CHARACTERISTICS_UUID)
-    btn_B_characteristic = peripheral.getCharacteristics(uuid=BTN_B_CHARACTERISTICS_UUID)
-    '''Microbit用初期化処理'''
  
     #操作/表示系用プロセスのメインループ
     while True:
@@ -85,38 +77,53 @@ def worker(shared_obj):
                 print('stop!')
                 STOP_FLAG = True
                 break
+        
+        #9軸センサー値換算結果取得
+        EulerAngles_zyx = bno.getVector(BNO055.VECTOR_EULER)		#◆◆◆◆◆重心制御
+        Acceleration_xyz = bmx.read_accl()							#◆◆◆◆◆重心制御
+        AngularVelocity_xyz = bmx.read_gyro()						#◆◆◆◆◆重心制御
+        #print("p1:EulerAngles -> {}".format(EulerAngles_zyx))		#◆◆◆◆◆重心制御
+        #print("p1:Accl        -> {}".format(Acceleration_xyz))		#◆◆◆◆◆重心制御
+        #print("p1:Gyro        -> {}".format(AngularVelocity_xyz))	#◆◆◆◆◆重心制御
+        
+        #傾き描画																												#◆◆◆◆◆重心制御
+        canvas.delete("all")																								#◆◆◆◆◆重心制御        
+        fnt = ("Ubuntu Mono",10)																							#◆◆◆◆◆重心制御
+        txt1 = ("Pitch:{}[dig]".format(EulerAngles_zyx[1]))																	#◆◆◆◆◆重心制御
+        txt2 = ("Roll:{}[dig]".format(EulerAngles_zyx[2]))																	#◆◆◆◆◆重心制御
+        canvas.create_text(150, 20, text = txt1, fill="black", font=fnt, tag="INFOTEXT")									#◆◆◆◆◆重心制御
+        canvas.create_text(450, 20, text = txt2, fill="black", font=fnt, tag="INFOTEXT")									#◆◆◆◆◆重心制御        
+        pitch_line_x = 50*math.cos(math.radians(EulerAngles_zyx[1]))														#◆◆◆◆◆重心制御
+        pitch_line_y = 50*math.sin(math.radians(EulerAngles_zyx[1]))														#◆◆◆◆◆重心制御
+        roll_line_x = 50*math.cos(math.radians(EulerAngles_zyx[2]))															#◆◆◆◆◆重心制御
+        roll_line_y = 50*math.sin(math.radians(EulerAngles_zyx[2]))															#◆◆◆◆◆重心制御
+        canvas.create_line(150-pitch_line_x, 100+pitch_line_y, 150+pitch_line_x, 100-pitch_line_y, fill ="Blue", width = 5)	#◆◆◆◆◆重心制御
+        canvas.create_line(450-roll_line_x, 100+roll_line_y, 450+roll_line_x, 100-roll_line_y, fill ="Green", width = 5)	#◆◆◆◆◆重心制御
+        root.update()
+        
 
 		#共用変数へ書き込み
+        #【例】shared_obj."共有変数".value = "ローカル変数"
         shared_obj.f4g_p1_joyAxisFB.value = js_input_bf
         shared_obj.f4g_p1_joyAxisLR.value = js_input_lr
-        shared_obj.b1g_p0_Stop.value = STOP_FLAG
+        shared_obj.i4g_p1_ComStop.value = STOP_FLAG 
         '''joystick用ループ処理'''
-
-        '''Microbit用ループ処理(Microbit③)'''
-        if MB_enable == True:
-            # 値の読み取り
-            acc_read_data = acc_characteristic[0].read()
-            btna_read_data =btn_A_characteristic[0].read()
-            btnb_read_data =btn_B_characteristic[0].read()
-
-            # 加速度センサー
-            x = int.from_bytes(acc_read_data[0:2], byteorder='little', signed=True)
-            y = int.from_bytes(acc_read_data[2:4], byteorder='little', signed=True)
-            z = int.from_bytes(acc_read_data[4:6], byteorder='little', signed=True)
-
-            # 加速度の表示
-            print(f"ACCELEROMETER - x:{int(x/10)}, y:{y/10}, z:{z/10}")
-
-            # ボタン状態の表示
-            print(f"btn A:{btna_read_data[0]}")
-            print(f"btn B:{btnb_read_data[0]}")
-
-
-        '''Microbit用ループ処理'''
+        
+        shared_obj.f4g_p1_EulerAngles_Yaw.value = EulerAngles_zyx[0]		#◆◆◆◆◆重心制御
+        shared_obj.f4g_p1_EulerAngles_Pitch.value = EulerAngles_zyx[1]		#◆◆◆◆◆重心制御
+        shared_obj.f4g_p1_EulerAngles_Roll.value = EulerAngles_zyx[2]		#◆◆◆◆◆重心制御
+        
+        shared_obj.f4g_p1_Acceleration_x.value = Acceleration_xyz[0]		#◆◆◆◆◆重心制御
+        shared_obj.f4g_p1_Acceleration_y.value = Acceleration_xyz[1]		#◆◆◆◆◆重心制御
+        shared_obj.f4g_p1_Acceleration_z.value = Acceleration_xyz[2]		#◆◆◆◆◆重心制御
+        
+        shared_obj.f4g_p1_AngularVelocity_x.value = AngularVelocity_xyz[0]	#◆◆◆◆◆重心制御
+        shared_obj.f4g_p1_AngularVelocity_y.value = AngularVelocity_xyz[1]	#◆◆◆◆◆重心制御
+        shared_obj.f4g_p1_AngularVelocity_z.value = AngularVelocity_xyz[2]	#◆◆◆◆◆重心制御
 
 
         #★★計算や処理 ※worker関数外に別関数を定義して呼び出す記載にしても良い
-        printState(state) #【例】
+        #printState(state) #【例】
         
         #★★shared_obj定義の共有変数への書き込み
         #【例】shared_obj."共有変数".value = "ローカル変数"

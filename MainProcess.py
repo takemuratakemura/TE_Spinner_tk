@@ -1,51 +1,31 @@
 import multiprocessing
-import time
 import asyncio
 import ControlProcess
 import OperationProcess
 from common.SharedObject import SharedObject
 from common.State import State
-from MainProcessPackage.GPIOAssistant import GPIOAssistant
+from MainProcessPackage.StateControl import StateControl
 from MainProcessPackage.TCPClient import TCPClient
-import struct
+from MainProcessPackage.MoniteringComRecvObject import MoniteringComRecvObject
+import json
+import atexit
 
-def updateState(shared_obj, currentIsStandbySW, currentIsDriveSW, previousIsStandbySW, previousIsDriveSW):
-    currentState = shared_obj.state
-
-    if currentState == State.FAIL_SAFE_MODE:
-        pass    #FAIL_SAFE_MODEの時は他のモードには遷移させない
-    else:
-        if (currentState == State.IG_ON_MODE):
-            if currentIsStandbySW and not(previousIsStandbySW):
-                shared_obj.state = State.PARKING_MODE
-        elif (currentState == State.PARKING_MODE) or (currentState == State.DRIVE_MODE): 
-            if currentIsDriveSW and not(previousIsDriveSW):
-                shared_obj.state = State.DRIVE_MODE
-            elif not(currentIsDriveSW) and (previousIsDriveSW):
-                shared_obj.state = State.PARKING_MODE
-            else:
-                pass
-        else:
-            pass    #ありえない遷移のため無視
-
-#■operationProcessへ定義が正しい？
+#TCPClientがデータを受信したときに実行されるCallback
 def recvEvent(sender,buffer):
-    tuplenum = struct.unpack("ii", buffer)
-    shared_obj.f4g_p1_joyAxisLR.value = tuplenum[0]
-    shared_obj.f4g_p1_joyAxisFB.value = tuplenum[1]
+    global moniteringComWDT
+    moniteringComWDT = 0
+    stringData = buffer.decode('ascii')
+    #print(stringData)
+    dictData = json.loads(stringData)
+    recvObject.update(dictData)
 
-#取得した現stateを表示する関数例
-def printState(state):
-    if state == State.IG_ON_MODE:
-        print('p0:Current State is IG_ON_MODE')
-    elif state == State.PARKING_MODE:
-        print('p0:Current State is PARKING_MODE')
-    elif state == State.DRIVE_MODE:
-        print('p0:Current State is DRIVE_MODE')
-    else:
-        print('p0:Current State is FAIL_SAFE_MODE')
+def exitEvent():
+    StateControl.clearnup()
 
 async def main():
+    #強制終了時のイベントハンドラを指定
+    atexit.register(exitEvent)
+    
     #プロセス初期化
     operationProcess = multiprocessing.Process(target=OperationProcess.worker, args=(shared_obj,)) #process1※操作/表示系用プロセス
     controlProcess = multiprocessing.Process(target=ControlProcess.worker, args=(shared_obj,)) #process2※駆動/重心制御用プロセス
@@ -54,66 +34,52 @@ async def main():
     operationProcess.start() #process1※操作/表示系用プロセス
     controlProcess.start() #process2※駆動/重心制御用プロセス
 
-    #GPIO初期化
-    """
-    StandbySwIO = GPIOAssistant(7)
-    DriveSwIO = GPIOAssistant(8)
-    previousIsStandbySW = StandbySwIO.isInput()
-    previousIsDriveSW = DriveSwIO.isInput()
-    """
-    previousIsStandbySW = 0 #DRIVE_MODE設定のための仮入力
-    previousIsDriveSW = 0 #DRIVE_MODE設定のための仮入力
+    #状態制御クラス初期化
+    StateControl.init(shared_obj.state)
     
-    #TCP通信初期化
-    """
+    #TCP通信クラス初期化
     loop = asyncio.get_event_loop() 
-    client = TCPClient(loop, recvEvent)
-    client_task = loop.create_task(client.run())
-    """
+    client = TCPClient(loop, recvEvent, "192.168.11.2", 55555)
+    loop.create_task(client.run())
+    await asyncio.sleep(1)
 
     #CAN通信初期化(バッテリ残量取得用IO)
     #(TODO)CAN通信初期化処理実装
 
-
     #メインループ
     while True:
-        #状態更新
-        """
-        currentIsStandbySW = StandbySwIO.isInput()
-        currentIsDriveSW = DriveSwIO.isInput()
-        """
-        currentIsStandbySW = 1 #DRIVE_MODE設定のための仮入力
-        currentIsDriveSW = 1 #DRIVE_MODE設定のための仮入力
-        updateState(shared_obj, currentIsStandbySW, currentIsDriveSW, previousIsStandbySW, previousIsDriveSW)
-        previousIsStandbySW = currentIsStandbySW
-        #previousIsDriveSW = currentIsDriveSW #DRIVE_MODE設定のためのコメント化
-
         #★★shared_obj定義の共有変数からローカル変数への値読み出し※計算に使用するものなど必要なものを読み出す
         #【例】"ローカル変数" = shared_obj."共有変数".value
-        state = shared_obj.state
-
-
+        state = State(StateControl.state)
+        values = shared_obj.getAllValues()
+        isControlProcessError = shared_obj.i4g_p2_isControlProcessError.value
+        isOperationProcessError = shared_obj.i4g_p1_isOperationProcessError.value
+        
         #★★計算や処理
-        printState(state) #【例】
+        print("p0:Current State is",state.name)
+        #状態更新
+        global moniteringComWDT
+        isError = bool(recvObject.isEmergencyStopSW) or bool(isControlProcessError) or bool(isOperationProcessError) or (moniteringComWDT > 30)
+        StateControl.updateState(state, recvObject.isStandbySW, isError)
+        #moniteringComWDT+= 1
         
         #TCP通信
-        #await client.send()
+        client.send(json.dumps(values, ensure_ascii=False, indent=4).encode('ascii'))
 
         #CAN通信
         #(TODO)CAN通信処理実装
 
-        #異常チェック
-        #(TODO)異常チェック実装
-
-
         #★★shared_obj定義の共有変数への書き込み
         #【例】shared_obj."共有変数".value = "ローカル変数"
-
+        shared_obj.state = StateControl.state
 
         #★★必要に応じて待ち時間を設定
         await asyncio.sleep(1)
 
-
 if __name__ == "__main__":
     shared_obj = SharedObject()
+    recvObject = MoniteringComRecvObject()
+    moniteringComWDT = 0
+
     asyncio.run(main())
+
