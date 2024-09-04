@@ -11,10 +11,29 @@ class SharedObject:
         self.f4g_p1_joyAxisFB = multiprocessing.Value(ctypes.c_float, 0) #ジョイスティックの前後操作量
         self.f4g_p2_speed = multiprocessing.Value(ctypes.c_float, 0) #車両速度
         self.i4g_p0_HWid = multiprocessing.Value(ctypes.c_uint, 0) #ハードウェア識別(0:POC, 1:本番機)
-        self.u1g_p1_PKB = multiprocessing.Value(ctypes.c_char, 0) #PKB信号
-        self.i4g_p0_CTRtype = multiprocessing.Value(ctypes.c_uint, 1) #0:本番機, 1:PSコントローラ
-        self.b1g_p0_Stop = multiprocessing.Value(ctypes.c_bool, False) #通信処理停止SW
-        self.b1g_p0_Microbit_enable = multiprocessing.Value(ctypes.c_bool, True) #Microbit接続有無
+        self.i4g_p1_PKB = multiprocessing.Value(ctypes.c_uint, 0) #PKB信号
+        self.i4g_p1_CTRtype = multiprocessing.Value(ctypes.c_uint, 1) #0:本番機, 1:PSコントローラ, 2:Microbit
+        self.i4g_p1_ComStop = multiprocessing.Value(ctypes.c_uint, False) #通信処理停止SW
+        self.i4g_p1_isOperationProcessError = multiprocessing.Value(ctypes.c_int, 0)
+        self.i4g_p2_isControlProcessError = multiprocessing.Value(ctypes.c_int, 0)
+        self.f4g_p1_EulerAngles_Pitch = multiprocessing.Value(ctypes.c_float, 0) #オイラー角y軸(Pitch)	#◆◆◆◆◆重心制御
+        self.f4g_p1_EulerAngles_Roll = multiprocessing.Value(ctypes.c_float, 0) #オイラー角x軸(Roll)		#◆◆◆◆◆重心制御
+        self.f4g_p1_EulerAngles_Yaw = multiprocessing.Value(ctypes.c_float, 0) #オイラー角z軸(Yaw)		#◆◆◆◆◆重心制御
+        self.f4g_p1_Acceleration_x = multiprocessing.Value(ctypes.c_float, 0) #加速度x方向	#◆◆◆◆◆重心制御
+        self.f4g_p1_Acceleration_y = multiprocessing.Value(ctypes.c_float, 0) #加速度y方向	#◆◆◆◆◆重心制御
+        self.f4g_p1_Acceleration_z = multiprocessing.Value(ctypes.c_float, 0) #加速度z方向	#◆◆◆◆◆重心制御  
+        self.f4g_p1_AngularVelocity_x = multiprocessing.Value(ctypes.c_float, 0) #角速度x軸	#◆◆◆◆◆重心制御
+        self.f4g_p1_AngularVelocity_y = multiprocessing.Value(ctypes.c_float, 0) #角速度y軸	#◆◆◆◆◆重心制御
+        self.f4g_p1_AngularVelocity_z = multiprocessing.Value(ctypes.c_float, 0) #角速度z軸	#◆◆◆◆◆重心制御
+
+        # クラス内のmultiprocessing.Valueのインスタンス変数を辞書に追加
+        self.__allValues = {}
+        for name, value in self.__dict__.items():
+            try:
+                if isinstance(value,  multiprocessing.sharedctypes.Synchronized):   self.__allValues[name] = value
+            except: 
+                pass
+
 
     @property
     def state(self):
@@ -38,6 +57,7 @@ class SharedObject:
                     pass    #ありえない遷移のため無視
                 else:
                     self.__i4g_p0_state.value = state
-
-
     
+    def getAllValues(self):
+        return {name: value.value for name, value in self.__allValues.items()}
+
