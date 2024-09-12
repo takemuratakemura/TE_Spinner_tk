@@ -40,7 +40,7 @@ def get_target_speed(value):
     MAX_FORWARD_SPEED = 4.0 #[km/h]
     MAX_BACKWARD_SPEED = -1.0 #[km/h]
 
-    target_map = {
+    target_speed_map = {
         -1: MAX_BACKWARD_SPEED,
         -0.9: MAX_BACKWARD_SPEED,
         -0.1: 0,
@@ -49,35 +49,26 @@ def get_target_speed(value):
         1: MAX_FORWARD_SPEED
     }
     
-    return linear_interpolation(target_map, value)
+    return linear_interpolation(target_speed_map, value)
 
 # 速度差分から加速度引き当て
 def get_target_accel(value):
-    MIN_ACCEL = -1.4 #[m/s^2]
     MAX_ACCEL = 0.3 #[m/s^2]
-    
-    target_map = {
-        -5: MIN_ACCEL,
+
+    target_accel_map = {
         0: 0,
         5: MAX_ACCEL
     }
     
-    return linear_interpolation(target_map, value)
+    return linear_interpolation(target_accel_map, value)
 
+# 速度差分から減速度引き当て
+def get_target_decel(value):
+    MAX_DECEL = -1.4 #[m/s^2]
 
-# 目標加速度から目標ピッチ角引き当て
-def get_target_pitch(value):
-
-    target_map = {
-        -1.4: -48,
-        -0.3: -12.7,
-        -0.17: -8.5,
-        -0.053: -4.5,
-        0: 0,
-        0.053: 4.5,
-        0.17: 8.5,
-        0.3: 12.7,
-        0.42: 17
+    target_decel_map = {
+        -5: MAX_DECEL,
+        0: 0
     }
     
-    return linear_interpolation(target_map, value)
+    return linear_interpolation(target_decel_map, value)

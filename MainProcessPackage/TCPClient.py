@@ -41,8 +41,7 @@ class TCPClient:
             try:
                 self._client.sendall(data)
             except Exception as e:
-                print("")
-                #print("send() fail.",e)
+                print("send() fail.",e)
 
 
         async def run(self):

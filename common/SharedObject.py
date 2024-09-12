@@ -10,7 +10,7 @@ class SharedObject:
         self.f4g_p1_joyAxisLR = multiprocessing.Value(ctypes.c_float, 0) #ジョイスティックの左右操作量
         self.f4g_p1_joyAxisFB = multiprocessing.Value(ctypes.c_float, 0) #ジョイスティックの前後操作量
         self.f4g_p2_speed = multiprocessing.Value(ctypes.c_float, 0) #車両速度
-        self.i4g_p0_HWid = multiprocessing.Value(ctypes.c_uint, 0) #ハードウェア識別(0:POC, 1:本番機)
+        self.i4g_p0_HWid = multiprocessing.Value(ctypes.c_uint, 1) #ハードウェア識別(0:POC, 1:本番機)
         self.u1g_p1_PKB = multiprocessing.Value(ctypes.c_uint, 0) #PKB信号
         self.i4g_p0_CTRtype = multiprocessing.Value(ctypes.c_uint, 1) #0:本番機, 1:PSコントローラ, 2:Microbit
         self.b1g_p0_Stop = multiprocessing.Value(ctypes.c_bool, False) #通信処理停止SW
@@ -32,6 +32,7 @@ class SharedObject:
         self.us2g_p2_PLC_error =  multiprocessing.Value(ctypes.c_ushort, 0) #
         self.f4g_p2_WeightPos_LR =  multiprocessing.Value(ctypes.c_float, 0) #
         self.f4g_p2_WeightPos_BF =  multiprocessing.Value(ctypes.c_float, 0) #
+        self.us2g_p0_CoGcalib_request = multiprocessing.Value(ctypes.c_ushort, 0) #
         
         # クラス内のmultiprocessing.Valueのインスタンス変数を辞書に追加
         self.__allValues = {}

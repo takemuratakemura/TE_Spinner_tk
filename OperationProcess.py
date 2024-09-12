@@ -112,7 +112,7 @@ def worker(shared_obj):
 
     
     # 有線ジョイスティック(0)か無線ジョイスティック(1)かを選択
-    i4g_p1_CTRtype = 0  # ここを手動で変更
+    i4g_p1_CTRtype = 1  # ここを手動で変更
     #joystick = pygame.joystick.Joystick(i4g_p1_CTRtype)
             
     # 有線接続を指示しているのに信号が途絶した場合
@@ -147,7 +147,7 @@ def worker(shared_obj):
     bno = BNO055()								#◆◆◆◆◆重心制御
     if bno.begin() is not True:					#◆◆◆◆◆重心制御
         print("Error initializing device")		#◆◆◆◆◆重心制御
-        #exit()									#◆◆◆◆◆重心制御
+        exit()									#◆◆◆◆◆重心制御
     time.sleep(1)								#◆◆◆◆◆重心制御
     bno.setExternalCrystalUse(True)				#◆◆◆◆◆重心制御
     
@@ -257,7 +257,7 @@ def worker(shared_obj):
         shared_obj.b1g_p0_Stop.value = STOP_FLAG 
         '''joystick用ループ処理'''
         
-        #print("前後入力:", round(shared_obj.f4g_p1_joyAxisFB.value,2),"左右入力:", round(shared_obj.f4g_p1_joyAxisLR.value,2),"Wired:",WiredJS_connected,"Wireless:",WirelessJS_connected)
+        print("前後入力:", round(shared_obj.f4g_p1_joyAxisFB.value,2),"左右入力:", round(shared_obj.f4g_p1_joyAxisLR.value,2),"Wired:",WiredJS_connected,"Wireless:",WirelessJS_connected)
 
 #        print("前後入力:", round(shared_obj.f4g_p1_joyAxisFB.value,2),"前後冗長:", round(js_input_bf_r,2),"左右入力:", round(shared_obj.f4g_p1_joyAxisLR.value,2),"左右冗長:", round(js_input_lr_r,2),"Wired:",WiredJS_connected,"Wireless:",WirelessJS_connected)
 
